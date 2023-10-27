@@ -6,15 +6,19 @@ import (
 	"ecommerce-api/model"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
 type TransactionHandler struct {
 	database  *database.Database
-	validator *helper.Validator
+	validator *validator.Validate
 }
 
-func NewTransactionHandler(database *database.Database, validator *helper.Validator) *TransactionHandler {
+func NewTransactionHandler(
+	database *database.Database,
+	validator *validator.Validate,
+) *TransactionHandler {
 	return &TransactionHandler{
 		database:  database,
 		validator: validator,

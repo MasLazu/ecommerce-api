@@ -7,19 +7,20 @@ import (
 	"ecommerce-api/service"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
 type UserHandler struct {
 	database    *database.Database
-	validator   *helper.Validator
+	validator   *validator.Validate
 	authService *service.AuthService
 	userService *service.UserService
 }
 
 func NewUserHandler(
 	database *database.Database,
-	validator *helper.Validator,
+	validator *validator.Validate,
 	authService *service.AuthService,
 	userService *service.UserService,
 ) *UserHandler {
@@ -39,7 +40,7 @@ func (h *UserHandler) Register(c echo.Context) error {
 		Password:  c.FormValue("password"),
 	}
 
-	if err := h.validator.Validate(registerRequest); err != nil {
+	if err := h.validator.Struct(registerRequest); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
@@ -90,7 +91,7 @@ func (h *UserHandler) UpdateCurrent(c echo.Context) error {
 		LastName:  c.FormValue("last_name"),
 	}
 
-	if err := h.validator.Validate(updateRequest); err != nil {
+	if err := h.validator.Struct(updateRequest); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 

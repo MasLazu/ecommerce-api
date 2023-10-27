@@ -6,16 +6,17 @@ import (
 	"ecommerce-api/model"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 )
 
 type StoreHandler struct {
 	database  *database.Database
-	validator *helper.Validator
+	validator *validator.Validate
 }
 
-func NewStoreHandler(database *database.Database, validator *helper.Validator) *StoreHandler {
+func NewStoreHandler(database *database.Database, validator *validator.Validate) *StoreHandler {
 	return &StoreHandler{
 		database:  database,
 		validator: validator,
@@ -48,7 +49,7 @@ func (h *StoreHandler) CreateCurrentUserStore(c echo.Context) error {
 		Name: c.FormValue("name"),
 	}
 
-	if err := h.validator.Validate(registerRequest); err != nil {
+	if err := h.validator.Struct(registerRequest); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
@@ -82,7 +83,7 @@ func (h *StoreHandler) UpdateCurrent(c echo.Context) error {
 		Name: c.FormValue("name"),
 	}
 
-	if err := h.validator.Validate(updateRequest); err != nil {
+	if err := h.validator.Struct(updateRequest); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 

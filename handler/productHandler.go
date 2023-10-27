@@ -2,25 +2,25 @@ package handler
 
 import (
 	"ecommerce-api/database"
-	"ecommerce-api/helper"
 	"ecommerce-api/model"
 	"ecommerce-api/service"
 	"log"
 	"net/http"
 	"strconv"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
 type ProductHandler struct {
 	database       *database.Database
-	validator      *helper.Validator
+	validator      *validator.Validate
 	productService *service.ProductService
 }
 
 func NewProductHandler(
 	database *database.Database,
-	validator *helper.Validator,
+	validator *validator.Validate,
 	productService *service.ProductService,
 ) *ProductHandler {
 	return &ProductHandler{
@@ -69,7 +69,7 @@ func (h *ProductHandler) CreateCurrentStoreProduct(c echo.Context) error {
 		Stock:       int(stock),
 	}
 
-	if err := h.validator.Validate(createRequest); err != nil {
+	if err := h.validator.Struct(createRequest); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
@@ -103,7 +103,7 @@ func (h *ProductHandler) UpdateCurrentStoreProduct(c echo.Context) error {
 		Stock:       int(stock),
 	}
 
-	if err := h.validator.Validate(updateRequest); err != nil {
+	if err := h.validator.Struct(updateRequest); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
@@ -131,7 +131,7 @@ func (h *ProductHandler) Buy(c echo.Context) error {
 		Quantity:  int(quantity),
 	}
 
-	if err := h.validator.Validate(transactionRequest); err != nil {
+	if err := h.validator.Struct(transactionRequest); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 

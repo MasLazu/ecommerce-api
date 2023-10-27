@@ -3,10 +3,10 @@ package app
 import (
 	"ecommerce-api/database"
 	"ecommerce-api/handler"
-	"ecommerce-api/helper"
 	"ecommerce-api/middleware"
 	"ecommerce-api/service"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 )
@@ -25,7 +25,7 @@ func NewApp() *App {
 
 	config := NewConfig()
 	database := database.NewDatabase(config.DatabaseUrl)
-	validator := helper.NewValidator()
+	validator := validator.New()
 	authService := service.NewAuthService(database, config.Jwt.SigningKey.([]byte))
 	userService := service.NewUserService(database)
 	productService := service.NewProductService(database, authService)

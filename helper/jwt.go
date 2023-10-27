@@ -28,16 +28,6 @@ func getJwtValue(c echo.Context, key string) (string, bool) {
 	return "", false
 }
 
-// func ExtractJwt(c echo.Context) JwtData {
-// 	var jwtData JwtData
-
-// 	if value, ok := getJwtValue(c, "email"); ok {
-// 		jwtData.Email = value
-// 	}
-
-// 	return jwtData
-// }
-
 func ExtractJwtEmail(c echo.Context) string {
 	if value, ok := getJwtValue(c, "email"); ok {
 		return value

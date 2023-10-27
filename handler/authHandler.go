@@ -7,19 +7,20 @@ import (
 	"ecommerce-api/service"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
 type AuthHandler struct {
 	database    *database.Database
-	validator   *helper.Validator
+	validator   *validator.Validate
 	authService *service.AuthService
 	jwtKey      []byte
 }
 
 func NewAuthHandler(
 	database *database.Database,
-	validator *helper.Validator,
+	validator *validator.Validate,
 	authService *service.AuthService,
 	jwtKey []byte,
 ) *AuthHandler {
@@ -37,7 +38,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		Password: c.FormValue("password"),
 	}
 
-	if err := h.validator.Validate(loginRequest); err != nil {
+	if err := h.validator.Struct(loginRequest); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
