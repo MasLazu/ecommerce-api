@@ -8,21 +8,26 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/lib/pq"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type UserHandler struct {
 	database    *database.Database
 	validator   *helper.Validator
 	authService *service.AuthService
+	userService *service.UserService
 }
 
-func NewUserHandler(database *database.Database, validator *helper.Validator, authService *service.AuthService) *UserHandler {
+func NewUserHandler(
+	database *database.Database,
+	validator *helper.Validator,
+	authService *service.AuthService,
+	userService *service.UserService,
+) *UserHandler {
 	return &UserHandler{
 		database:    database,
 		validator:   validator,
 		authService: authService,
+		userService: userService,
 	}
 }
 
@@ -38,23 +43,15 @@ func (h *UserHandler) Register(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	user := registerRequest.ToUser()
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err != nil {
+	user, err := h.userService.Register(registerRequest)
+	switch err {
+	case service.ErrEmailAlreadyTaken:
+		return echo.NewHTTPError(http.StatusBadRequest, "Email already taken")
+	case nil:
+		return c.JSON(http.StatusOK, user)
+	default:
 		return echo.ErrInternalServerError
 	}
-
-	user.Password = string(hashedPassword)
-
-	if err := user.Create(h.database.Conn); err != nil {
-		if err, ok := err.(*pq.Error); ok && err.Code.Name() == "unique_violation" {
-			return echo.NewHTTPError(http.StatusBadRequest, "Email already taken")
-		}
-		return echo.ErrInternalServerError
-	}
-
-	return c.JSON(http.StatusOK, user)
 }
 
 func (h *UserHandler) GetByEmail(c echo.Context) error {

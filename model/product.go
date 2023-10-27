@@ -70,6 +70,24 @@ func (p *ProductCreate) ToProduct() Product {
 	}
 }
 
+type ProductUpdate struct {
+	ID          string `json:"id" validate:"required"`
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description" validate:"required"`
+	Stock       int    `json:"stock" validate:"required"`
+	Price       int64  `json:"price" validate:"required"`
+}
+
+func (p *ProductUpdate) ToProduct() Product {
+	return Product{
+		ID:          p.ID,
+		Name:        p.Name,
+		Description: p.Description,
+		Stock:       p.Stock,
+		Price:       p.Price,
+	}
+}
+
 func GetAllProduct(dbConn DBConn) ([]Product, error) {
 	sql := `SELECT id, name, store_id, description, stock, price, created_at, updated_at 
 	FROM products`

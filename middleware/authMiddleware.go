@@ -16,7 +16,3 @@ func NewAuthMiddleware(config echojwt.Config) *AuthMiddleware {
 		LoginOnly: echojwt.JWT(config.SigningKey.([]byte)),
 	}
 }
-
-// func (m *AuthMiddleware) LoginOnly() echo.MiddlewareFunc {
-// 	return echojwt.JWT(m.config.SigningKey.([]byte))
-// }

@@ -26,15 +26,25 @@ func NewApp() *App {
 	config := NewConfig()
 	database := database.NewDatabase(config.DatabaseUrl)
 	validator := helper.NewValidator()
-	authService := service.NewAuthService(database)
-	authHandler := handler.NewAuthHandler(database, validator, config.Jwt.SigningKey.([]byte))
-	userHandler := handler.NewUserHandler(database, validator, authService)
+	authService := service.NewAuthService(database, config.Jwt.SigningKey.([]byte))
+	userService := service.NewUserService(database)
+	productService := service.NewProductService(database, authService)
+	authHandler := handler.NewAuthHandler(database, validator, authService, config.Jwt.SigningKey.([]byte))
+	userHandler := handler.NewUserHandler(database, validator, authService, userService)
 	storeHandler := handler.NewStoreHandler(database, validator)
-	productHandler := handler.NewProductHandler(database, validator, authService)
+	productHandler := handler.NewProductHandler(database, validator, productService)
 	transactionHandler := handler.NewTransactionHandler(database, validator)
 	authMiddleware := middleware.NewAuthMiddleware(config.Jwt)
 	instance := echo.New()
-	SetupRoute(instance, authHandler, userHandler, storeHandler, productHandler, transactionHandler, authMiddleware)
+	SetupRoute(
+		instance,
+		authHandler,
+		userHandler,
+		storeHandler,
+		productHandler,
+		transactionHandler,
+		authMiddleware,
+	)
 
 	return &App{
 		Instance: instance,

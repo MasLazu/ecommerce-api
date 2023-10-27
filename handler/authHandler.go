@@ -4,27 +4,30 @@ import (
 	"ecommerce-api/database"
 	"ecommerce-api/helper"
 	"ecommerce-api/model"
+	"ecommerce-api/service"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
-	database  *database.Database
-	validator *helper.Validator
-	jwtKey    []byte
+	database    *database.Database
+	validator   *helper.Validator
+	authService *service.AuthService
+	jwtKey      []byte
 }
 
 func NewAuthHandler(
 	database *database.Database,
 	validator *helper.Validator,
+	authService *service.AuthService,
 	jwtKey []byte,
 ) *AuthHandler {
 	return &AuthHandler{
-		database:  database,
-		validator: validator,
-		jwtKey:    jwtKey,
+		database:    database,
+		validator:   validator,
+		authService: authService,
+		jwtKey:      jwtKey,
 	}
 }
 
@@ -38,47 +41,18 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	password := loginRequest.Password
-	user := loginRequest.ToUser()
-	if err := user.GetByEmail(h.database.Conn); err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid email or password")
-		}
-		return echo.ErrInternalServerError
-	}
+	accessToken, err := h.authService.Login(loginRequest, c)
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+	switch err {
+	case service.ErrInvalidEmailOrPassword:
 		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid email or password")
-	}
-
-	store := model.Store{
-		OwnerEmail: user.Email,
-	}
-	if err := store.GetByOwnerEmail(h.database.Conn); err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			store.ID = ""
-		} else {
-			return echo.ErrInternalServerError
-		}
-	}
-
-	refreshToken := model.RefreshToken{
-		UserEmail: user.Email,
-	}
-	if err := refreshToken.Create(h.database.Conn); err != nil {
+	case nil:
+		return c.JSON(http.StatusOK, echo.Map{
+			"access_token": accessToken,
+		})
+	default:
 		return echo.ErrInternalServerError
 	}
-
-	helper.AssignRefreshTokenCookes(refreshToken.Token, c)
-
-	signedToken, err := helper.GenerateJwtToken(user.Email, h.jwtKey)
-	if err != nil {
-		return echo.ErrInternalServerError
-	}
-
-	return c.JSON(http.StatusOK, echo.Map{
-		"access_token": signedToken,
-	})
 }
 
 func (h *AuthHandler) Refresh(c echo.Context) error {
@@ -89,17 +63,6 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 
 	refreshToken := model.RefreshToken{
 		Token: cookie.Value,
-	}
-
-	store := model.Store{
-		OwnerEmail: refreshToken.UserEmail,
-	}
-	if err := store.GetByOwnerEmail(h.database.Conn); err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			store.ID = ""
-		} else {
-			return echo.ErrInternalServerError
-		}
 	}
 
 	if err := refreshToken.GetByToken(h.database.Conn); err != nil {

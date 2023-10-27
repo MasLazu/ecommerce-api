@@ -5,6 +5,7 @@ import (
 	"ecommerce-api/helper"
 	"ecommerce-api/model"
 	"ecommerce-api/service"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -12,20 +13,20 @@ import (
 )
 
 type ProductHandler struct {
-	database    *database.Database
-	validator   *helper.Validator
-	authService *service.AuthService
+	database       *database.Database
+	validator      *helper.Validator
+	productService *service.ProductService
 }
 
 func NewProductHandler(
 	database *database.Database,
 	validator *helper.Validator,
-	authService *service.AuthService,
+	productService *service.ProductService,
 ) *ProductHandler {
 	return &ProductHandler{
-		database:    database,
-		validator:   validator,
-		authService: authService,
+		database:       database,
+		validator:      validator,
+		productService: productService,
 	}
 }
 
@@ -72,25 +73,15 @@ func (h *ProductHandler) CreateCurrentStoreProduct(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	product := createRequest.ToProduct()
-
-	store := model.Store{
-		OwnerEmail: helper.ExtractJwtEmail(c),
-	}
-	if err := store.GetByOwnerEmail(h.database.Conn); err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return echo.NewHTTPError(http.StatusBadRequest, "You don't have a store")
-		}
+	product, err := h.productService.Create(createRequest, c)
+	switch err {
+	case service.ErrDontHaveStore:
+		return echo.NewHTTPError(http.StatusBadRequest, "You don't have a store yet")
+	case nil:
+		return c.JSON(http.StatusCreated, product)
+	default:
 		return echo.ErrInternalServerError
 	}
-
-	product.StoreID = store.ID
-
-	if err := product.Create(h.database.Conn); err != nil {
-		return echo.ErrInternalServerError
-	}
-
-	return c.JSON(http.StatusOK, product)
 }
 
 func (h *ProductHandler) UpdateCurrentStoreProduct(c echo.Context) error {
@@ -104,7 +95,8 @@ func (h *ProductHandler) UpdateCurrentStoreProduct(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid stock")
 	}
 
-	updateRequest := model.ProductCreate{
+	updateRequest := model.ProductUpdate{
+		ID:          c.Param("id"),
 		Name:        c.FormValue("name"),
 		Description: c.FormValue("description"),
 		Price:       price,
@@ -115,31 +107,17 @@ func (h *ProductHandler) UpdateCurrentStoreProduct(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	product := updateRequest.ToProduct()
-	product.ID = c.Param("id")
-	if err := product.GetByID(h.database.Conn); err != nil {
+	product, err := h.productService.Update(updateRequest, c)
+	switch err {
+	case service.ErrProductNotFound:
 		return echo.NewHTTPError(http.StatusNotFound, "Product not found")
-	}
-
-	store := model.Store{
-		OwnerEmail: helper.ExtractJwtEmail(c),
-	}
-	if err := store.GetByOwnerEmail(h.database.Conn); err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return echo.NewHTTPError(http.StatusBadRequest, "You don't have a store")
-		}
-		return echo.ErrInternalServerError
-	}
-
-	if product.StoreID != store.ID {
+	case service.ErrDontOwnProduct:
 		return echo.NewHTTPError(http.StatusBadRequest, "You don't own this product")
-	}
-
-	if err := product.UpdateByID(h.database.Conn); err != nil {
+	case nil:
+		return c.JSON(http.StatusOK, product)
+	default:
 		return echo.ErrInternalServerError
 	}
-
-	return c.JSON(http.StatusOK, product)
 }
 
 func (h *ProductHandler) Buy(c echo.Context) error {
@@ -157,57 +135,20 @@ func (h *ProductHandler) Buy(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	user, err := h.authService.CurrentUser(c)
-	if err != nil {
-		return echo.ErrUnauthorized
-	}
-
-	product := model.Product{
-		ID: transactionRequest.ProductID,
-	}
-
-	if err := product.GetByID(h.database.Conn); err != nil {
+	transaction, err := h.productService.Buy(transactionRequest, c)
+	switch err {
+	case service.ErrProductNotFound:
 		return echo.NewHTTPError(http.StatusNotFound, "Product not found")
-	}
-
-	if product.Stock < transactionRequest.Quantity {
-		return echo.NewHTTPError(http.StatusBadRequest, "Insufficient stock")
-	}
-
-	valueTransaction := product.Price * int64(transactionRequest.Quantity)
-
-	if valueTransaction > user.Balance {
-		return echo.NewHTTPError(http.StatusBadRequest, "Insufficient balance")
-	}
-
-	tx, err := h.database.Conn.Begin()
-	if err != nil {
+	case service.ErrInsufficientStock:
+		return echo.NewHTTPError(http.StatusBadRequest, "You buy more than the available stock")
+	case service.ErrInsufficientBalance:
+		return echo.NewHTTPError(http.StatusBadRequest, "You don't have enough balance to buy this product")
+	case service.ErrBuyYourOwnProduct:
+		return echo.NewHTTPError(http.StatusBadRequest, "You can't buy your own product")
+	case nil:
+		return c.JSON(http.StatusCreated, transaction)
+	default:
+		log.Println(err)
 		return echo.ErrInternalServerError
 	}
-
-	user.Balance -= valueTransaction
-	if err := user.Update(tx); err != nil {
-		tx.Rollback()
-		return echo.ErrInternalServerError
-	}
-
-	transaction := transactionRequest.ToTransaction()
-	transaction.UserEmail = user.Email
-
-	if err := transaction.Create(tx); err != nil {
-		tx.Rollback()
-		return echo.ErrInternalServerError
-	}
-
-	product.Stock -= transaction.Quantity
-	if err := product.UpdateByID(tx); err != nil {
-		tx.Rollback()
-		return echo.ErrInternalServerError
-	}
-
-	if err := tx.Commit(); err != nil {
-		return echo.ErrInternalServerError
-	}
-
-	return c.JSON(http.StatusOK, transaction)
 }

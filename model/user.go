@@ -10,7 +10,7 @@ type User struct {
 	FirstName string     `json:"first_name,omitempty"`
 	LastName  string     `json:"last_name,omitempty"`
 	Password  string     `json:"-"`
-	Balance   int64      `json:"balance,omitempty"`
+	Balance   int64      `json:"balance"`
 	CreatedAt *time.Time `json:"created_at,omitempty"`
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
@@ -106,7 +106,7 @@ func (u *User) Create(dbConn DBConn) error {
 }
 
 func (u *User) Update(dbConn DBConn) error {
-	sql := `UPDATE users SET first_name = $1, last_name = $2 
+	sql := `UPDATE users SET first_name = $1, last_name = $2
 	WHERE email = $3
 	RETURNING email, first_name, last_name, password, balance, created_at, updated_at`
 
@@ -114,6 +114,18 @@ func (u *User) Update(dbConn DBConn) error {
 		sql,
 		u.FirstName,
 		u.LastName,
+		u.Email,
+	))
+}
+
+func (u *User) UpdateBalance(dbConn DBConn) error {
+	sql := `UPDATE users SET balance = $1
+	WHERE email = $2
+	RETURNING email, first_name, last_name, password, balance, created_at, updated_at`
+
+	return u.scanRow(dbConn.QueryRow(
+		sql,
+		u.Balance,
 		u.Email,
 	))
 }
